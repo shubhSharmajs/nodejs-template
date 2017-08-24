@@ -8,7 +8,7 @@ const async = require('async');
 const crypto = require('crypto');
 const debug = require('debug')('jsonApi:store:relationaldb');
 const Joi = require('joi');
-let filter = require('./processFilter')
+const filter = require('./processFilter');
 
 const _ = {
   pick: require('lodash.pick'),
@@ -20,30 +20,30 @@ const util = require('util');
 const MIN_SERVER_VERSION = '1.10.0';
 
 export default class SqlStore {
-  constructor(config, objectdb,user_schema={}) {
+  constructor(config, objectdb, user_schema = {}) {
     this.config = config;
     this._sequelizeInstances = {};
     this.relations = {};
-    if(objectdb){
-      this.attributes =  {
-        "userId": Joi.number(),
-        "ad_display_name": Joi.string(),
-        "ad_username": Joi.string(),
-        "email_address": Joi.string(),
-        "firstname": Joi.string(),
-        "lastname": Joi.string(),
-        "created_by": Joi.string(),
-        "updated_by": Joi.string(),
-        "change_pw": Joi.string(),
-        "account_locked": Joi.string(),
-        "user_disabled": Joi.string()
+    if (objectdb) {
+      this.attributes = {
+        userId: Joi.number(),
+        display_name: Joi.string(),
+        username: Joi.string(),
+        email_address: Joi.string(),
+        firstname: Joi.string(),
+        lastname: Joi.string(),
+        created_by: Joi.string(),
+        updated_by: Joi.string(),
+        change_pw: Joi.string(),
+        account_locked: Joi.string(),
+        user_disabled: Joi.string(),
       };
 
       this.sequelize = objectdb;
 
       let localAttributes = Object.keys(
         this.attributes,
-      ).filter(attributeName => {
+      ).filter((attributeName) => {
         const settings = this.attributes[attributeName]._settings;
         if (!settings) return true;
         return !(settings.__one || settings.__many);
@@ -51,7 +51,7 @@ export default class SqlStore {
       localAttributes = _.pick(this.attributes, localAttributes);
       let relations = Object.keys(
         this.attributes,
-      ).filter(attributeName => {
+      ).filter((attributeName) => {
         const settings = this.attributes[attributeName]._settings;
         if (!settings) return false;
         return (settings.__one || settings.__many) && !settings.__as;
@@ -59,16 +59,16 @@ export default class SqlStore {
       relations = _.pick(this.attributes, relations);
 
       const modelAttributes = this._joiSchemaToSequelizeModel(localAttributes);
-      this.resource="user";
+      this.resource = 'user';
       this.baseModel = this.sequelize.define(
-        "user",
+        'user',
         user_schema,
         { timestamps: false },
       );
 
       this.relations = {};
       this.relationArray = [];
-      Object.keys(relations).forEach(relationName => {
+      Object.keys(relations).forEach((relationName) => {
         const relation = relations[relationName];
         const otherModel = this._defineRelationModel(
           relationName,
@@ -79,10 +79,8 @@ export default class SqlStore {
         this.relationArray.push(otherModel);
       });
     }
-
   }
   initialise(resourceConfig) {
-
     this.resourceConfig = resourceConfig;
 
     const database = this.config.database || resourceConfig.resource;
@@ -123,10 +121,10 @@ export default class SqlStore {
   populate(callback) {
     const self = this;
     const tasks = [
-      function(cb) {
+      function (cb) {
         self.baseModel.sync().asCallback(cb);
       },
-      function(cb) {
+      function (cb) {
         async.eachSeries(
           self.relationArray,
           (model, ecb) => {
@@ -135,7 +133,7 @@ export default class SqlStore {
           cb,
         );
       },
-      function(cb) {
+      function (cb) {
         async.eachSeries(
           self.resourceConfig.examples,
           (exampleJson, ecb) => {
@@ -157,7 +155,7 @@ export default class SqlStore {
     async.series(tasks, callback);
   }
   async search(request) {
-    let processed = filter.parseAndValidate(request,this.attributes);
+    const processed = filter.parseAndValidate(request, this.attributes);
     const options = {};
     const where = this._generateSearchBlock(processed);
     if (where) {
@@ -165,11 +163,11 @@ export default class SqlStore {
     }
     const includeBlocks = this._generateSearchIncludes(request.params.filter);
 
-    //debug('includeBlocks', util.inspect(includeBlocks, { depth: null }));
+    // debug('includeBlocks', util.inspect(includeBlocks, { depth: null }));
     if (includeBlocks.count.length) {
       options.include = includeBlocks.count;
     }
-    let count = await this.baseModel.count(options);
+    const count = await this.baseModel.count(options);
     debug('Count', count);
     if (includeBlocks.findAll.length) {
       options.include = includeBlocks.findAll;
@@ -184,41 +182,26 @@ export default class SqlStore {
         _.assign(options, pagination);
       }
     }
-    let result = await this.baseModel.findAll(options);
+    const result = await this.baseModel.findAll(options);
 
 
-    const records = result.map(i => {
-      let json = this._fixObject(i.toJSON());
+    const records = result.map((i) => {
+      const json = this._fixObject(i.toJSON());
       return json;
     });
     debug('Produced', JSON.stringify(records));
-    return {data:records,count:count};
-
+    return { data: records, count };
   }
-  find(request, callback) {
-    this.baseModel
-      .findOne({
-        where: { id: request.params.id },
-        include: this.relationArray,
-      })
-      .asCallback((err, theResource) => {
-        if (err) return this._errorHandler(err, callback);
 
-        // If the resource doesn't exist, error
-        if (!theResource) {
-          return callback({
-            status: '404',
-            code: 'ENOTFOUND',
-            title: 'Requested resource does not exist',
-            detail: `There is no ${request.params.type} with id ${request.params
-              .id}`,
-          });
-        }
-        theResource = this._fixObject(theResource.toJSON());
-        debug('Produced', JSON.stringify(theResource));
-        return callback(null, theResource);
-      });
+  async find(request) {
+    let result = await this.baseModel.findOne({
+      where: { id: request.params.id },
+      include: this.relationArray,
+    });
+    result = this._fixObject(result.toJSON());
+    return result;
   }
+
   create(request, newResource, finishedCallback) {
     const self = this;
 
@@ -226,7 +209,7 @@ export default class SqlStore {
       self.baseModel.create(newResource, t).asCallback((err2, theResource) => {
         if (err2) return finishTransaction(err2);
 
-        self._clearAndSetRelationTables(theResource, newResource, t, err => {
+        self._clearAndSetRelationTables(theResource, newResource, t, (err) => {
           if (err) return finishTransaction(err);
 
           return finishTransaction(null, newResource);
@@ -267,10 +250,10 @@ export default class SqlStore {
   update(request, partialResource, finishedCallback) {
     this._dealWithTransaction(finishedCallback, (t, finishTransaction) => {
       this.baseModel.findOne({
-          where: { id: request.params.id },
-          include: this.relationArray,
-          transaction: t.transaction,
-        })
+        where: { id: request.params.id },
+        include: this.relationArray,
+        transaction: t.transaction,
+      })
         .asCallback((err2, theResource) => {
           if (err2) return finishTransaction(err2);
 
@@ -303,7 +286,7 @@ export default class SqlStore {
   _buildModels() {
     let localAttributes = Object.keys(
       this.resourceConfig.attributes,
-    ).filter(attributeName => {
+    ).filter((attributeName) => {
       const settings = this.resourceConfig.attributes[attributeName]._settings;
       if (!settings) return true;
       return !(settings.__one || settings.__many);
@@ -311,7 +294,7 @@ export default class SqlStore {
     localAttributes = _.pick(this.resourceConfig.attributes, localAttributes);
     let relations = Object.keys(
       this.resourceConfig.attributes,
-    ).filter(attributeName => {
+    ).filter((attributeName) => {
       const settings = this.resourceConfig.attributes[attributeName]._settings;
       if (!settings) return false;
       return (settings.__one || settings.__many) && !settings.__as;
@@ -327,7 +310,7 @@ export default class SqlStore {
 
     this.relations = {};
     this.relationArray = [];
-    Object.keys(relations).forEach(relationName => {
+    Object.keys(relations).forEach((relationName) => {
       const relation = relations[relationName];
       const otherModel = this._defineRelationModel(
         relationName,
@@ -340,7 +323,7 @@ export default class SqlStore {
   _joiSchemaToSequelizeModel(joiSchema) {
     const model = {};
 
-    Object.keys(joiSchema).forEach(attributeName => {
+    Object.keys(joiSchema).forEach((attributeName) => {
       const attribute = joiSchema[attributeName];
       if (attribute._type === 'string') {
         model[attributeName] = { type: Sequelize.STRING, allowNull: true };
@@ -387,11 +370,10 @@ export default class SqlStore {
     return relatedModel;
   }
   _fixObject(json) {
-
     const self = this;
     const resourceId = `${this.resource}Id`;
 
-    /*Object.keys(json).forEach(attribute => {
+    /* Object.keys(json).forEach(attribute => {
       if (attribute.indexOf(`${this.resource}-`) !== 0) return;
 
       const fixedName = attribute
@@ -471,7 +453,7 @@ export default class SqlStore {
     return searchIncludes;
   }
   _generateSearchBlock(processed) {
-    console.log("processed filter", processed);
+    console.log('processed filter', processed);
 
     const attributesToFilter = _.omit(
       processed,
@@ -523,7 +505,7 @@ export default class SqlStore {
     if (!filter) return {};
     const searchBlock = {};
 
-    Object.keys(filter).forEach(attributeName => {
+    Object.keys(filter).forEach((attributeName) => {
       const filterElement = filter[attributeName];
       searchBlock[attributeName] = self._filterElementToSearchBlock(
         filterElement,
@@ -583,7 +565,7 @@ export default class SqlStore {
         where: whereClause,
         transaction: t.transaction,
       })
-      .asCallback(deleteError => {
+      .asCallback((deleteError) => {
         if (deleteError) return taskCallback(deleteError);
 
         async.map(
@@ -603,7 +585,7 @@ export default class SqlStore {
         );
       });
   }
-  _clearAndSetOne (
+  _clearAndSetOne(
     relationModel,
     prop,
     theResource,
@@ -619,7 +601,7 @@ export default class SqlStore {
         where: whereClause,
         transaction: t.transaction,
       })
-      .asCallback(deleteError => {
+      .asCallback((deleteError) => {
         if (deleteError) return taskCallback(deleteError);
         if (!prop) {
           theResource[`set${ucKeyName}`](null, t).asCallback(taskCallback);
@@ -633,12 +615,12 @@ export default class SqlStore {
           });
         }
       });
-  };
+  }
   _clearAndSetRelationTables(theResource, partialResource, t, callback) {
     const self = this;
 
     const tasks = {};
-    Object.keys(self.relations).forEach(relationName => {
+    Object.keys(self.relations).forEach((relationName) => {
       const prop = partialResource[relationName];
       if (!partialResource.hasOwnProperty(relationName)) return;
       const relationModel = self.relations[relationName];
@@ -695,5 +677,4 @@ export default class SqlStore {
       offset: page.offset,
     };
   }
-
 }

@@ -28,8 +28,8 @@ import { printSchema } from 'graphql';
 import email from './email';
 import redis from './redis';
 import passport from './passport';
-//import schema from './schema';
-//import DataLoaders from './DataLoaders';
+// import schema from './schema';
+// import DataLoaders from './DataLoaders';
 import accountRoutes from './routes/account';
 import userRoutes from './routes/user';
 
@@ -80,7 +80,8 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use(flash());
 
 app.use(accountRoutes);
-app.use('/api/user',userRoutes);
+app.use('/api/user', userRoutes);
+
 
 // The following routes are intended to be used in development mode only
 if (process.env.NODE_ENV !== 'production') {
@@ -109,7 +110,6 @@ if (process.env.NODE_ENV !== 'production') {
     }
   });
 }
-
 
 
 const pe = new PrettyError();

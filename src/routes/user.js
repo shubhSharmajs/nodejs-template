@@ -14,108 +14,102 @@
 
 
 import { Router } from 'express';
-import UserDBSchema from '../database/schema'
-import Sequelize from 'sequelize';
+// import UserDBSchema from '../database/schema'
+// import Sequelize from 'sequelize';
 const router = new Router();
+const crypto = require('crypto');
 
-import SqlStore from '../modules/databaseFilter';
-import RouterBase from '../router/routerbase'
-class BaseApi extends RouterBase{
-  constructor(){
-    let router =  new Router();
+import RouterBase from '../router/routerbase';
+// import SqlStore from '../modules/databaseFilter';
+import UserController from '../controllers/UserController';
+
+class BaseApi extends RouterBase {
+  constructor() {
+    const router = new Router();
     super(router, {});
     this.router = router;
   }
-  async search(req,res){
+  async search(req, res) {
 
   }
-  async getById(id, req, res){
+  async getById(id, req, res) {
 
   }
-  async post(req, res){
+  async post(req, res) {
 
   }
-  async put(id, req, res){
+  async put(id, req, res) {
 
   }
-  async patch(id, req, res){
+  async patch(id, req, res) {
 
   }
-  async deleteById(id,req,res){
+  async deleteById(id, req, res) {
 
   }
 }
 
-class UserController {
-  constructor(){
-    this.UserDB = new UserDBSchema();
-    this.sqlStore = new SqlStore({}, this.UserDB.objectdb(),{
-      userId: { type: Sequelize.INTEGER, primaryKey: true,autoIncrement: true},
-      ad_display_name: Sequelize.STRING,
-      ad_username: Sequelize.STRING,
-      email_address: Sequelize.STRING,
-      firstname: Sequelize.STRING,
-      lastname: Sequelize.STRING,
-      created_by: Sequelize.STRING,
-      updated_by: Sequelize.STRING,
-      change_pw: Sequelize.INTEGER,
-      account_locked: Sequelize.INTEGER,
-      user_disabled: Sequelize.INTEGER
+class UserApi extends BaseApi {
+  constructor() {
+    super();
+    this.userController = new UserController();
+    // this.authenticate
+    this.router.post('/authenticate', async (req, res) => {
+      try {
+        await this.authenticate(req, res);
+      } catch (err) {
+        res.json({ message: err.toString() });
+      }
     });
 
-  }
-  async create(obj){
-     return await this.UserDB.User.create(obj);
-  }
-  async update(){
-
-  }
-  async delete(){
-
-  }
-  async findById(){
-
-  }
-  async findAll(query,req,res){
-    return await this.sqlStore.search(req);
-  }
-}
-
-class UserApi extends BaseApi{
-  constructor(){
-    super();
-    this.userController  = new UserController();
-    this.router.get("/my_method",async (req,res)=>{
-      try{
-        await this.my_method(req,res);
-      }catch(e){
-        res.json({messaage: e.toString()})
+    this.router.get('/my_method', async (req, res) => {
+      try {
+        await this.my_method(req, res);
+      } catch (e) {
+        res.json({ message: e.toString() });
       }
-    })
+    });
   }
-  async my_method(req,res){
+  async my_method(req, res) {
 
   }
-  async search(req,res){
-    let data = await this.userController.findAll(req.body,req,res);
+  async authenticate(req, res) {
+    // whenever it is called
+    const authObj = await this.UserDB.User.findOne({ username: req.body.username });
+    if (authObj.username === req.body.username && authObj.password === crypto.createHash('sha256').update(req.body.password).digest('base64')) {
+      console.log('authorized');
+    } else {
+      console.log('not authorized');
+      res.json({ message: 'error in authentication' });
+    }
+  }
+
+
+  async search(req, res) {
+    const data = await this.userController.findAll(req.body, req, res);
     res.json(data);
   }
-  async getById(id, req, res){
-
-  }
-  async post(req, res){
-    let data = await this.userController.create(req.body);
+  async getById(id, req, res) {
+    const data = await this.userController.findById(id);
     res.json(data);
   }
-  async put(id, req, res){
+  async post(req, res) {
+    req.body.password = crypto.createHash('sha256').update(req.body.password).digest('base64');
+    const data = await this.userController.create(req.body);
+    delete data.dataValues.password;
+    res.json(data);
+  }
+  async put(id, req, res) {
+    req.body.password = crypto.createHash('sha256').update(req.body.password).digest('base64');
+    const data = await this.userController.update(id, req.body);
+    res.json(data);
+  }
+  async patch(id, req, res) {
 
   }
-  async patch(id, req, res){
-
-  }
-  async deleteById(id,req,res){
+  async deleteById(id, req, res) {
 
   }
 }
-let userApi = new UserApi();
+const userApi = new UserApi();
 export default userApi.router;
